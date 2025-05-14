@@ -1,6 +1,4 @@
 const express = require('express');
-const https = require('https');
-const fs = require('fs');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -13,8 +11,8 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cors({
-  origin: 'https://localhost:5173',
-  credentials: true, // If you're using cookies or sessions
+  origin: process.env.CORS_ORIGIN || 'https://localhost:5173', // Update to your frontend's URL in production!
+  credentials: true,
 }));
 
 // Static frontend files
@@ -26,14 +24,21 @@ app.use('/api', require('./routes/auth'));
 app.use('/api', require('./routes/skillmint'));
 // app.use('/api/user', require('./routes/user'));
 
-// Load HTTPS certificate and key
-const sslOptions = {
-  key: fs.readFileSync(path.join(__dirname, 'localhost+1-key.pem')),
-  cert: fs.readFileSync(path.join(__dirname, 'localhost+1.pem')),
-};
 
-// Create HTTPS server
-const PORT = process.env.PORT || 443;
-https.createServer(sslOptions, app).listen(PORT, () => {
-  console.log(`🚀 SkillMint backend running on https://localhost:${PORT}`);
-});
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  // --- Local Development (HTTPS) ---
+  const fs = require('fs');
+  const https = require('https');
+
+  const sslOptions = {
+    key: fs.readFileSync(path.join(__dirname, 'localhost+1-key.pem')),
+    cert: fs.readFileSync(path.join(__dirname, 'localhost+1.pem')),
+  };
+
+  const PORT = process.env.PORT || 443;
+  https.createServer(sslOptions, app).listen(PORT, () => {
+    console.log(`🚀 SkillMint backend running locally on https://localhost:${PORT}`);
+  });
+}
