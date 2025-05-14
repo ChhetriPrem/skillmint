@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Link Solana Wallet with GitHub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.70.1/lib/index.iife.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-100 min-h-screen flex items-center justify-center font-sans">
+  <div class="w-full max-w-xl bg-white p-8 rounded-2xl shadow-xl border border-gray-200">
+    <h1 class="text-3xl font-bold text-center text-blue-700 mb-6">🔗 Link Solana Wallet with GitHub</h1>
+
+    <div class="space-y-4">
+      <!-- GitHub Username -->
+      <label for="github_username" class="block text-lg font-medium text-gray-700">GitHub Username</label>
+      <input
+        type="text"
+        id="github_username"
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="e.g. octocat"
+      />
+
+      <!-- Link Wallet Button -->
+      <button
+        id="linkWalletBtn"
+        class="w-full bg-blue-600 text-white py-2 rounded-md font-semibold hover:bg-blue-700 transition duration-300"
+      >
+        🔐 Link Wallet
+      </button>
+
+      <!-- Receiver Wallet Address -->
+      <label for="receiver_wallet" class="block text-lg font-medium text-gray-700 mt-6">Receiver Wallet Address</label>
+      <input
+        type="text"
+        id="receiver_wallet"
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+        placeholder="e.g. 3nV...TND"
+      />
+
+      <!-- Giver Wallet Address (optional) -->
+      <label for="giver_wallet" class="block text-lg font-medium text-gray-700">Giver Wallet Address (optional)</label>
+      <input
+        type="text"
+        id="giver_wallet"
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+        placeholder="Leave blank to use connected wallet"
+      />
+
+      <!-- Mint Badge Button -->
+      <button
+        id="mintBadgeBtn"
+        class="w-full bg-purple-600 text-white py-2 rounded-md font-semibold hover:bg-purple-700 transition duration-300"
+      >
+        🪙 Mint Badge
+      </button>
+    </div>
+
+    <!-- Display Profile and Badges -->
+    <div id="profile" class="mt-8 text-gray-800"></div>
+  </div>
+
+  <script>
+    // Link Wallet Function
+    async function linkWallet() {
+      const githubUsername = document.getElementById('github_username').value.trim();
+      if (!githubUsername) {
+        alert('❗ Please enter your GitHub username.');
+        return;
+      }
+
+      if (!window.solana || !window.solana.isPhantom) {
+        alert('🛑 Phantom wallet not detected! Please install or unlock your wallet.');
+        return;
+      }
+
+      try {
+        const wallet = window.solana;
+        await wallet.connect();
+
+        if (!wallet.signMessage) {
+          alert('🚫 Your wallet does not support message signing.');
+          return;
+        }
+
+        const walletAddress = wallet.publicKey.toString();
+        const message = `Link your GitHub account: ${githubUsername}`;
+        const messageBytes = new TextEncoder().encode(message);
+        const result = await wallet.signMessage(messageBytes);
+
+        const signatureBase64 = btoa(String.fromCharCode(...result.signature));
+
+        const body = {
+          github_username: githubUsername,
+          wallet_address: walletAddress,
+          signature: signatureBase64
+        };
+
+        const response = await fetch('/api/link/github', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.message === 'Linked successfully') {
+          alert('✅ GitHub linked successfully!');
+          displayProfile(githubUsername);
+          sendToExtensionAPI(signatureBase64, walletAddress);
+        } else {
+          alert('❌ Failed to link GitHub: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error during wallet linking:', error);
+        alert('⚠️ Something went wrong while linking wallet. Please try again.');
+      }
+    }
+
+    // Show Profile + Badges
+    async function displayProfile(githubUsername) {
+      try {
+        const response = await fetch(`/api/profile/github/${githubUsername}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.profile) {
+          alert('🚫 Profile not found.');
+          return;
+        }
+
+        const profile = data.profile;
+        const badges = data.badges || [];
+
+        document.getElementById('profile').innerHTML = `
+          <div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h2 class="text-2xl font-semibold mb-2 text-blue-700">👤 GitHub Profile</h2>
+            <p><strong>Username:</strong> ${profile.github_username}</p>
+            <p><strong>Wallet Address:</strong> ${profile.wallet_address}</p>
+            <h3 class="text-xl font-medium mt-4 mb-1 text-purple-700">🏅 Badges</h3>
+            <ul class="list-disc ml-6 text-gray-700">
+              ${badges.length ? badges.map(b => `<li>${b.name}</li>`).join('') : '<li>No badges yet.</li>'}
+            </ul>
+          </div>
+        `;
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+        alert('⚠️ Could not fetch profile. Please try again.');
+      }
+    }
+
+    // Send to Extension
+    function sendToExtensionAPI(signature, walletAddress) {
+      window.postMessage({
+        action: 'linkGitHubWallet',
+        signature,
+        walletAddress
+      }, '*');
+    }
+
+    // Mint Badge Handler
+    async function mintBadge() {
+      const githubUsername = document.getElementById('github_username').value.trim();
+      const receiverWallet = document.getElementById('receiver_wallet').value.trim();
+      const giverWalletInput = document.getElementById('giver_wallet').value.trim();
+
+      if (!githubUsername || !receiverWallet) {
+        alert('❗ Please enter both GitHub username and receiver wallet address.');
+        return;
+      }
+
+      try {
+        if (!window.solana || !window.solana.isPhantom) {
+          alert('🛑 Phantom wallet not detected!');
+          return;
+        }
+
+        const wallet = window.solana;
+        await wallet.connect();
+        const connectedWallet = wallet.publicKey.toString();
+
+        const body = {
+          github_username: githubUsername,
+          receiver_wallet: receiverWallet,
+          giver_wallet: giverWalletInput || connectedWallet
+        };
+
+        const response = await fetch('/api/mint-badge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          alert('✅ Badge minted successfully!');
+          displayProfile(githubUsername);
+        } else {
+          alert('❌ Minting failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        console.error('Mint error:', err);
+        alert('⚠️ Error minting badge.');
+      }
+    }
+
+    // Listeners
+    document.getElementById('linkWalletBtn').addEventListener('click', linkWallet);
+    document.getElementById('mintBadgeBtn').addEventListener('click', mintBadge);
+  </script>
+</body>
+</html>
