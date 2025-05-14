@@ -15,7 +15,7 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || 'https://localhost:5173',
   credentials: true,
 }));
-
+console.log(process.env.SUPABASE_KEY , process.env.SUPABASE_URL);
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => res.send('SkillMint Backend API Running!'));
