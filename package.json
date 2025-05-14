@@ -18,6 +18,7 @@
     "@metaplex-foundation/umi-signer-wallet-adapters": "^1.2.0",
     "@pinata/sdk": "^2.1.0",
     "@supabase/supabase-js": "^2.49.4",
+    "@solana/spl-token": "^0.4.13",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
