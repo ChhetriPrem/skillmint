@@ -1,5 +1,5 @@
 const nacl = require('tweetnacl');
-const bs58 = require('bs58');
+    const bs58 = require('bs58');
 const { PublicKey } = require('@solana/web3.js');
 
 // Function to verify Solana wallet signature
@@ -12,7 +12,9 @@ const verifySignature = (walletAddress, message, signature) => {
     try {
       const messageBytes = new TextEncoder().encode(message);
       // Decode signature from base58 (not base64)
-      const signatureBytes = bs58.decode(signature);
+   const signatureBytes = Uint8Array.from(Buffer.from(signature, 'base64'));
+
+
 
       // Validate signature length
       if (signatureBytes.length !== nacl.sign.signatureLength) {
