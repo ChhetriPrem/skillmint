@@ -312,3 +312,62 @@ exports.publicCV = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch CV from IPFS" });
   }
 };
+
+export const getBadgesByUsername = async (req, res) => {
+  const { githubUsername } = req.body;
+
+  try {
+    // 1. Fetch user info
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('github_username, wallet_address')
+      .eq('github_username', githubUsername)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // 2. Fetch badges for user
+    const { data: badges, error: badgesError } = await supabase
+      .from('badges')
+      .select('badge_name, badge_metadata_uri')
+      .eq('receiver_github', githubUsername);
+
+    if (badgesError) {
+      return res.status(500).json({ error: 'Failed to fetch badges' });
+    }
+
+    // 3. Fetch and parse metadata for each badge
+    const badgesWithMetadata = await Promise.all(
+      badges.map(async (badge) => {
+        try {
+          const response = await fetch(badge.badge_metadata_uri);
+          const metadata = await response.json();
+
+      
+          // For example, description and attributes array
+          return {
+            name: badge.badge_name,
+            metadata,
+          };
+        } catch {
+          // If metadata fetch fails, return badge name only
+          return { name: badge.badge_name, metadata: null };
+        }
+      })
+    );
+
+    // 4. Construct response object
+    const backendData = {
+      githubUsername: user.github_username,
+      githubUrl: `https://github.com/${user.github_username}`,
+      wallet: user.wallet_address,
+      badges: badgesWithMetadata,
+    };
+
+    return res.status(200).json(backendData);
+  } catch (error) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
