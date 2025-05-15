@@ -296,6 +296,13 @@ exports.uploadCVtoPianata = async (req, res) => {
 };
 
 exports.publicCV = async (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
   const { cid } = req.query;
   if (!cid) return res.status(400).json({ error: "Missing CID" });
   try {
