@@ -27,6 +27,7 @@ router.post("/mint-badge-ex", mintController.mintBadge);
 router.get("/users/wallet", controller.getWalletByGithub);
 router.post("/users/uploadcv", controller.uploadCVtoPianata);
 router.get("/users/publiccv", controller.publicCV);
+router.get("/users/getmybadges", controller.getMintedBadgesByGithub);
 
 // Get all badges minted for a GitHub user
 router.get("/badges", mintController.getBadgesForWallet);
