@@ -12,7 +12,7 @@ const app = express();
 
 app.use(express.json());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'https://localhost:5173',
+  origin: process.env.CORS_ORIGIN || 'https://skillmint-fe.vercel.app', 
   credentials: true,
 }));
 console.log(process.env.SUPABASE_KEY , process.env.SUPABASE_URL);
