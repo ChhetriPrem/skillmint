@@ -113,19 +113,85 @@ async function uploadJSONToPinata(json) {
   }
 }
 
+// --- Get pre-uploaded image info ---
+// This is a new function to handle pre-uploaded images
+async function getPreUploadedImageInfo(imageId) {
+  // Map of pre-uploaded images matching the frontend
+  const preUploadedImages = {
+    1: {
+      path: "./public/badge1.png",
+      url: "/badge1.png",
+      mimetype: "image/png",
+    },
+    2: {
+      path: "./public/badge2.png",
+      url: "/badge2.png",
+      mimetype: "image/png",
+    },
+    3: {
+      path: "./public/badge3.png",
+      url: "/badge3.png",
+      mimetype: "image/png",
+    },
+    4: {
+      path: "./public/badge4.png",
+      url: "/badge4.png",
+      mimetype: "image/png",
+    },
+  };
+
+  const imageInfo = preUploadedImages[imageId];
+  if (!imageInfo) {
+    throw new Error(`Pre-uploaded image with ID ${imageId} not found`);
+  }
+
+  return imageInfo;
+}
+
 // --- Controller: Upload image & metadata to Pinata ---
 exports.uploadTemplateMetadata = async (req, res) => {
   try {
     console.log("debug-top");
-    const { templateName, description } = req.body;
-    const imagePath = req.file.path;
-    const mimetype = req.file.mimetype;
+    const { templateName, description, preUploadedImageId } = req.body;
 
-    // 1. Upload image to Pinata
-    const { url: imageUrl, mimetype: imageType } = await uploadFileToPinata(
-      imagePath,
-      mimetype
-    );
+    let imageUrl, mimetype;
+
+    // Handle either uploaded file or pre-uploaded image
+    if (req.file) {
+      // Case 1: New file uploaded
+      console.log("Processing uploaded file");
+      const imagePath = req.file.path;
+      mimetype = req.file.mimetype;
+
+      // 1. Upload image to Pinata
+      const uploadResult = await uploadFileToPinata(imagePath, mimetype);
+      imageUrl = uploadResult.url;
+
+      // Remove local image file after upload
+      fs.unlinkSync(imagePath);
+    } else if (preUploadedImageId) {
+      // Case 2: Pre-uploaded image selected
+      console.log("Processing pre-uploaded image with ID:", preUploadedImageId);
+      const imageInfo = await getPreUploadedImageInfo(preUploadedImageId);
+
+      // For pre-uploaded images, we can either:
+      // 1. Use the existing URL if images are already on IPFS/Pinata
+      // 2. Upload to Pinata from the local path
+
+      // Option 1: If pre-uploaded images are already on IPFS, use directly
+      // imageUrl = `https://your-gateway.com/pre-uploaded/${imageInfo.url}`;
+      // mimetype = imageInfo.mimetype;
+
+      // Option 2: Upload to Pinata from local file
+      const uploadResult = await uploadFileToPinata(
+        imageInfo.path,
+        imageInfo.mimetype
+      );
+      imageUrl = uploadResult.url;
+      mimetype = imageInfo.mimetype;
+    } else {
+      throw new Error("No image file or pre-uploaded image ID provided");
+    }
 
     // 2. Upload metadata to Pinata
     const metadata = {
@@ -135,7 +201,7 @@ exports.uploadTemplateMetadata = async (req, res) => {
       image: imageUrl,
       attributes: [],
       properties: {
-        files: [{ uri: imageUrl, type: imageType }],
+        files: [{ uri: imageUrl, type: mimetype }],
         category: "image",
       },
     };
@@ -146,11 +212,11 @@ exports.uploadTemplateMetadata = async (req, res) => {
     };
     const metadataUri = await uploadJSONToPinata(pinataPayload);
     console.log("debug-1");
-    // Remove local image file
-    fs.unlinkSync(imagePath);
+
     console.log("debug");
     res.json({ metadataUri, imageUrl });
   } catch (err) {
+    console.error("uploadTemplateMetadata error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -158,14 +224,21 @@ exports.uploadTemplateMetadata = async (req, res) => {
 // --- Controller: Store Template in Supabase ---
 exports.storeTemplate = async (req, res) => {
   try {
-    const { templateName, description, metadataUri, imageUrl, txSignature } =
-      req.body;
+    const {
+      templateName,
+      description,
+      metadataUri,
+      imageUrl,
+      txSignature,
+      preUploadedImageId,
+    } = req.body;
     console.log("storeTemplate called with:", {
       templateName,
       description,
       metadataUri,
       imageUrl,
       txSignature,
+      preUploadedImageId,
     });
 
     if (
@@ -189,6 +262,7 @@ exports.storeTemplate = async (req, res) => {
           metadata_uri: metadataUri,
           tx_signature: txSignature,
           on_chain: true,
+          pre_uploaded_image_id: preUploadedImageId || null,
         },
       ])
       .select()
@@ -296,7 +370,7 @@ exports.uploadCVtoPianata = async (req, res) => {
 };
 
 exports.publicCV = async (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -313,11 +387,20 @@ exports.publicCV = async (req, res) => {
   }
 };
 
-export const getBadgesByUsername = async (req, res) => {
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "https://skillmint-fe.vercel.app");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
-  res.setHeader("Access-Control-Allow-Headers", "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version");
+exports.getBadgesByUsername = async (req, res) => {
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader(
+    "Access-Control-Allow-Origin",
+    "https://skillmint-fe.vercel.app"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET,OPTIONS,PATCH,DELETE,POST,PUT"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
+  );
 
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -328,23 +411,23 @@ export const getBadgesByUsername = async (req, res) => {
   try {
     // 1. Fetch user info
     const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('github_username, wallet_address')
-      .eq('github_username', githubUsername)
+      .from("users")
+      .select("github_username, wallet_address")
+      .eq("github_username", githubUsername)
       .single();
 
     if (userError || !user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     // 2. Fetch badges for user
     const { data: badges, error: badgesError } = await supabase
-      .from('badges')
-      .select('badge_name, badge_metadata_uri')
-      .eq('receiver_github', githubUsername);
+      .from("badges")
+      .select("badge_name, badge_metadata_uri")
+      .eq("receiver_github", githubUsername);
 
     if (badgesError) {
-      return res.status(500).json({ error: 'Failed to fetch badges' });
+      return res.status(500).json({ error: "Failed to fetch badges" });
     }
 
     // 3. Fetch and parse metadata for each badge
@@ -354,7 +437,6 @@ export const getBadgesByUsername = async (req, res) => {
           const response = await fetch(badge.badge_metadata_uri);
           const metadata = await response.json();
 
-      
           // For example, description and attributes array
           return {
             name: badge.badge_name,
@@ -377,6 +459,6 @@ export const getBadgesByUsername = async (req, res) => {
 
     return res.status(200).json(backendData);
   } catch (error) {
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
