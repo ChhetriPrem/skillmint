@@ -261,8 +261,7 @@ exports.storeTemplate = async (req, res) => {
           image_url: imageUrl,
           metadata_uri: metadataUri,
           tx_signature: txSignature,
-          on_chain: true,
-          pre_uploaded_image_id: preUploadedImageId || null,
+          on_chain: true
         },
       ])
       .select()
